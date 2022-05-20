@@ -127,6 +127,17 @@ class BaselineBlock(tf.keras.layers.Layer):
 '''
 
 
+class PixelShuffle(tf.keras.layers.Layer):
+    def __init__(self, upsample_rate):
+        super(PixelShuffle, self).__init__()
+        self.upsample_rate = upsample_rate
+
+    def call(self, inputs, *args, **kwargs):
+        return tf.nn.depth_to_space(inputs,
+                                    block_size=self.upsample_rate
+                                    )
+
+
 class SimpleGate(tf.keras.layers.Layer):
     def __init__(self):
         super(SimpleGate, self).__init__()
@@ -161,16 +172,18 @@ class SimpleChannelAttention(tf.keras.layers.Layer):
 class NAFBlock(tf.keras.layers.Layer):
     def __init__(self,
                  n_filters: int,
+                 dropout_rate: float,
                  expension_rate: int = 2,
                  ffn_expansion: int = 2
                  ):
         super(NAFBlock, self).__init__()
 
         self.n_filters = n_filters
+        self.dropout_rate = dropout_rate
         self.dw_filters = n_filters * expension_rate
         self.ffn_filters = n_filters * ffn_expansion
 
-        self.forward1 = tf.keras.Sequential([
+        self.spatial = tf.keras.Sequential([
             tf.keras.layers.LayerNormalization(),
             tf.keras.layers.Conv2D(self.dw_filters,
                                    kernel_size=3,
@@ -178,8 +191,13 @@ class NAFBlock(tf.keras.layers.Layer):
                                    padding='SAME',
                                    activation='linear'
                                    ),
+            tf.keras.layers.DepthwiseConv2D(kernel_size=3,
+                                            strides=1,
+                                            padding='SAME',
+                                            activation='linear'
+                                            ),
             SimpleGate(),
-            SimpleChannelAttention(),
+            SimpleChannelAttention(self.n_filters),
             tf.keras.layers.Conv2D(self.n_filters,
                                    kernel_size=3,
                                    strides=1,
@@ -187,7 +205,9 @@ class NAFBlock(tf.keras.layers.Layer):
                                    activation='linear'
                                    )
         ])
-        self.forward2 = tf.keras.Sequential([
+        self.drop1 = tf.keras.layers.Dropout(self.dropout_rate)
+
+        self.channel = tf.keras.Sequential([
             tf.keras.layers.LayerNormalization(),
             tf.keras.layers.Dense(self.ffn_filters,
                                   activation='linear'
@@ -197,9 +217,22 @@ class NAFBlock(tf.keras.layers.Layer):
                                   activation='linear'
                                   )
         ])
+        self.drop2 = tf.keras.layers.Dropout(self.dropout_rate)
+
+        self.beta = tf.Variable(
+            tf.zeros((1, 1, 1, self.n_filters)),
+            trainable=True,
+            dtype=tf.float32
+        )
+        self.gamma = tf.Variable(
+            tf.zeros((1, 1, 1, self.n_filters)),
+            trainable=True,
+            dtype=tf.float32
+        )
 
     def call(self, inputs, *args, **kwargs):
-        inputs = self.forward1(inputs) + inputs
-        inputs = self.forward2(inputs) + inputs
+        inputs = self.drop1(self.spatial(inputs)) * self.beta + inputs
+        inputs = self.drop2(self.channel(inputs)) * self.gamma + inputs
         return inputs
+
 
