@@ -173,14 +173,14 @@ class NAFBlock(tf.keras.layers.Layer):
     def __init__(self,
                  n_filters: int,
                  dropout_rate: float,
-                 expension_rate: int = 2,
+                 dw_expansion: int = 2,
                  ffn_expansion: int = 2
                  ):
         super(NAFBlock, self).__init__()
 
         self.n_filters = n_filters
         self.dropout_rate = dropout_rate
-        self.dw_filters = n_filters * expension_rate
+        self.dw_filters = n_filters * dw_expansion
         self.ffn_filters = n_filters * ffn_expansion
 
         self.spatial = tf.keras.Sequential([
