@@ -2,42 +2,16 @@ import tensorflow as tf
 
 
 '''
-class CAModule(tf.keras.layers.Layer):
-    def __init__(self,
-                 n_filters: int,
-                 reduction_rate: int = 4
-                 ):
-        super(CAModule, self).__init__()
-
-        self.n_filters = n_filters
-        self.reduction_filters = int(self.n_filters // self.reduction_rate)
-
-        self.pool = tf.keras.layers.GlobalAvgPool2D()
-        self.forward = tf.keras.Sequential([
-            tf.keras.layers.Dense(self.reduction_filters,
-                                  activation='relu'
-                                  ),
-            tf.keras.layers.Dense(self.n_filters,
-                                  activation='linear'
-                                  )
-        ])
-
-    def call(self, inputs, *args, **kwargs):
-        attention = self.pool(inputs)
-        attention = self.forward(attention)
-        inputs = inputs * attention
-
-
 class PlainBLock(tf.keras.layers.Layer):
     def __init__(self,
                  n_filters: int,
-                 expension_rate: int = 2,
+                 dw_expansion: int = 2,
                  ffn_expansion: int = 2
                  ):
         super(PlainBLock, self).__init__()
         
         self.n_filters = n_filters
-        self.dw_filters = n_filters * expension_rate
+        self.dw_filters = n_filters * dw_expansion
         self.ffn_filters = n_filters * ffn_expansion
         
         self.forward1 = tf.keras.Sequential([
@@ -74,18 +48,44 @@ class PlainBLock(tf.keras.layers.Layer):
         inputs = self.forward1(inputs) + inputs
         inputs = self.forward2(inputs) + inputs
         return inputs
+        
+        
+class CAModule(tf.keras.layers.Layer):
+    def __init__(self,
+                 n_filters: int,
+                 reduction_rate: int = 4
+                 ):
+        super(CAModule, self).__init__()
+
+        self.n_filters = n_filters
+        self.reduction_filters = int(self.n_filters // self.reduction_rate)
+
+        self.pool = tf.keras.layers.GlobalAvgPool2D()
+        self.forward = tf.keras.Sequential([
+            tf.keras.layers.Dense(self.reduction_filters,
+                                  activation='relu'
+                                  ),
+            tf.keras.layers.Dense(self.n_filters,
+                                  activation='linear'
+                                  )
+        ])
+
+    def call(self, inputs, *args, **kwargs):
+        attention = self.pool(inputs)
+        attention = self.forward(attention)
+        inputs = inputs * attention
 
 
 class BaselineBlock(tf.keras.layers.Layer):
     def __init__(self,
                  n_filters: int,
-                 expension_rate: int = 2,
+                 dw_expansion: int = 2,
                  ffn_expansion: int = 2
                  ):
         super(BaselineBlock, self).__init__()
 
         self.n_filters = n_filters
-        self.dw_filters = n_filters * expension_rate
+        self.dw_filters = n_filters * dw_expansion
         self.ffn_filters = n_filters * ffn_expansion
         
         self.forward1 = tf.keras.Sequential([
