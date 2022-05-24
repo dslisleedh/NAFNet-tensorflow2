@@ -14,7 +14,7 @@ class PlainBLock(tf.keras.layers.Layer):
         self.dw_filters = n_filters * dw_expansion
         self.ffn_filters = n_filters * ffn_expansion
         
-        self.forward1 = tf.keras.Sequential([
+        self.spatial = tf.keras.Sequential([
             tf.keras.layers.Conv2D(self.dw_filters,
                                    activation='linear',
                                    kernel_size=3,
@@ -34,7 +34,7 @@ class PlainBLock(tf.keras.layers.Layer):
                                    padding='SAME'
                                    )
         ])
-        self.forward2 = tf.keras.Sequential([
+        self.channel = tf.keras.Sequential([
             tf.keras.layers.Dense(self.ffn_filters,
                                   activation='linear'
                                   ),
@@ -45,8 +45,8 @@ class PlainBLock(tf.keras.layers.Layer):
         ])
         
     def call(self, inputs, *args, **kwargs):
-        inputs = self.forward1(inputs) + inputs
-        inputs = self.forward2(inputs) + inputs
+        inputs = self.spatial(inputs) + inputs
+        inputs = self.channel(inputs) + inputs
         return inputs
         
         
@@ -88,7 +88,7 @@ class BaselineBlock(tf.keras.layers.Layer):
         self.dw_filters = n_filters * dw_expansion
         self.ffn_filters = n_filters * ffn_expansion
         
-        self.forward1 = tf.keras.Sequential([
+        self.spatial = tf.keras.Sequential([
             tf.keras.layers.LayerNormalization(),
             tf.keras.layers.Conv2D(self.dw_filters,
                                    kernel_size=3,
@@ -109,7 +109,7 @@ class BaselineBlock(tf.keras.layers.Layer):
                                    padding='SAME'
                                    )
         ])
-        self.forward2 = tf.keras.Sequential([
+        self.channel = tf.keras.Sequential([
             tf.keras.layers.LayerNormalization(),
             tf.keras.layers.Dense(self.ffn_filters,
                                   activation='linear'
@@ -121,8 +121,8 @@ class BaselineBlock(tf.keras.layers.Layer):
         ])
         
     def call(self, inputs, *args, **kwargs):
-        inputs = self.forward1(inputs) + inputs
-        inputs = self.forward2(inputs) + inputs
+        inputs = self.spatial(inputs) + inputs
+        inputs = self.channel(inputs) + inputs
         return inputs
 '''
 
@@ -157,14 +157,17 @@ class SimpleChannelAttention(tf.keras.layers.Layer):
         super(SimpleChannelAttention, self).__init__()
         self.n_filters = n_filters
 
-        self.pool = tf.keras.layers.GlobalAvgPool2D()
         self.w = tf.keras.layers.Dense(self.n_filters,
                                        activation='linear',
                                        use_bias=False
                                        )
 
     def call(self, inputs, *args, **kwargs):
-        attention = self.pool(inputs)
+        attention = tf.reduce_mean(inputs,
+                                   axis=[1, 2],
+                                   keepdims=True
+                                   )
+        print(attention.shape)
         attention = self.w(attention)
         return attention * inputs
 
@@ -234,5 +237,3 @@ class NAFBlock(tf.keras.layers.Layer):
         inputs = self.drop1(self.spatial(inputs)) * self.beta + inputs
         inputs = self.drop2(self.channel(inputs)) * self.gamma + inputs
         return inputs
-
-

@@ -6,7 +6,7 @@ from layers import *
 class NAFNet(tf.keras.models.Model):
     def __init__(self,
                  width: int = 16,
-                 middle_blk_num: int = 1,
+                 n_middle_blocks: int = 1,
                  n_enc_blocks: List[int] = [1, 1, 1, 28],
                  n_dec_blocks: List[int] = [1, 1, 1, 1],
                  dropout_rate: float = 0.
@@ -43,7 +43,7 @@ class NAFNet(tf.keras.models.Model):
                                        )
             )
         self.middles = tf.keras.Sequential([
-            NAFBlock(width * (2 ** n_stages), dropout_rate) for _ in range(middle_blk_num)
+            NAFBlock(width * (2 ** n_stages), dropout_rate) for _ in range(n_middle_blocks)
         ])
         self.decoders = []
         self.ups = []
