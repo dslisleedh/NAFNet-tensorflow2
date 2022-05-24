@@ -16,7 +16,7 @@ class PlainBLock(tf.keras.layers.Layer):
         
         self.spatial = tf.keras.Sequential([
             tf.keras.layers.Conv2D(self.dw_filters,
-                                   activation='linear',
+                                   activation=None,
                                    kernel_size=1,
                                    strides=1,
                                    padding='VALID'
@@ -24,23 +24,23 @@ class PlainBLock(tf.keras.layers.Layer):
             tf.keras.layers.DepthwiseConv2D(kernel_size=3,
                                             strides=1,
                                             padding='SAME',
-                                            activation='linear'
+                                            activation=None
                                             ),
             tf.keras.layers.ReLU(),
             tf.keras.layers.Conv2D(self.n_filters,
                                    kernel_size=1,
-                                   activation='linear',
+                                   activation=None,
                                    strides=1,
                                    padding='VALID'
                                    )
         ])
         self.channel = tf.keras.Sequential([
             tf.keras.layers.Dense(self.ffn_filters,
-                                  activation='linear'
+                                  activation=None
                                   ),
             tf.keras.layers.ReLU(),
             tf.keras.layers.Dense(self.n_filters,
-                                  activation='linear'
+                                  activation=None
                                   )
         ])
         
@@ -66,7 +66,7 @@ class CAModule(tf.keras.layers.Layer):
                                   activation='relu'
                                   ),
             tf.keras.layers.Dense(self.n_filters,
-                                  activation='linear'
+                                  activation=None
                                   )
         ])
 
@@ -93,30 +93,30 @@ class BaselineBlock(tf.keras.layers.Layer):
             tf.keras.layers.Conv2D(self.dw_filters,
                                    kernel_size=1,
                                    strides=1,
-                                   activation='linear',
+                                   activation=None,
                                    padding='VALID'
                                    ),
             tf.keras.layers.DepthwiseConv2D(kernel_size=3,
                                             strides=1,
-                                            activation='linear',
+                                            activation=None,
                                             padding='SAME'
                                             ),
             tf.keras.layers.Activation('gelu'),
             tf.keras.layers.Conv2D(self.n_filters,
                                    kernel_size=1,
                                    strides=1,
-                                   activation='linear',
+                                   activation=None,
                                    padding='VALID'
                                    )
         ])
         self.channel = tf.keras.Sequential([
             tf.keras.layers.LayerNormalization(),
             tf.keras.layers.Dense(self.ffn_filters,
-                                  activation='linear'
+                                  activation=None
                                   ),
             tf.keras.layers.Activation('gelu'),
             tf.keras.layers.Dense(self.n_filters,
-                                  activation='linear'
+                                  activation=None
                                   )
         ])
         
@@ -158,7 +158,7 @@ class SimpleChannelAttention(tf.keras.layers.Layer):
         self.n_filters = n_filters
 
         self.w = tf.keras.layers.Dense(self.n_filters,
-                                       activation='linear',
+                                       activation=None,
                                        use_bias=False
                                        )
 
