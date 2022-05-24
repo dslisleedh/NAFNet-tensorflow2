@@ -17,9 +17,9 @@ class PlainBLock(tf.keras.layers.Layer):
         self.spatial = tf.keras.Sequential([
             tf.keras.layers.Conv2D(self.dw_filters,
                                    activation='linear',
-                                   kernel_size=3,
+                                   kernel_size=1,
                                    strides=1,
-                                   padding='SAME'
+                                   padding='VALID'
                                    ),
             tf.keras.layers.DepthwiseConv2D(kernel_size=3,
                                             strides=1,
@@ -28,10 +28,10 @@ class PlainBLock(tf.keras.layers.Layer):
                                             ),
             tf.keras.layers.ReLU(),
             tf.keras.layers.Conv2D(self.n_filters,
-                                   kernel_size=3,
+                                   kernel_size=1,
                                    activation='linear',
                                    strides=1,
-                                   padding='SAME'
+                                   padding='VALID'
                                    )
         ])
         self.channel = tf.keras.Sequential([
@@ -91,10 +91,10 @@ class BaselineBlock(tf.keras.layers.Layer):
         self.spatial = tf.keras.Sequential([
             tf.keras.layers.LayerNormalization(),
             tf.keras.layers.Conv2D(self.dw_filters,
-                                   kernel_size=3,
+                                   kernel_size=1,
                                    strides=1,
                                    activation='linear',
-                                   padding='SAME'
+                                   padding='VALID'
                                    ),
             tf.keras.layers.DepthwiseConv2D(kernel_size=3,
                                             strides=1,
@@ -103,10 +103,10 @@ class BaselineBlock(tf.keras.layers.Layer):
                                             ),
             tf.keras.layers.Activation('gelu'),
             tf.keras.layers.Conv2D(self.n_filters,
-                                   kernel_size=3,
+                                   kernel_size=1,
                                    strides=1,
                                    activation='linear',
-                                   padding='SAME'
+                                   padding='VALID'
                                    )
         ])
         self.channel = tf.keras.Sequential([
@@ -167,7 +167,6 @@ class SimpleChannelAttention(tf.keras.layers.Layer):
                                    axis=[1, 2],
                                    keepdims=True
                                    )
-        print(attention.shape)
         attention = self.w(attention)
         return attention * inputs
 
@@ -189,23 +188,23 @@ class NAFBlock(tf.keras.layers.Layer):
         self.spatial = tf.keras.Sequential([
             tf.keras.layers.LayerNormalization(),
             tf.keras.layers.Conv2D(self.dw_filters,
-                                   kernel_size=3,
+                                   kernel_size=1,
                                    strides=1,
-                                   padding='SAME',
-                                   activation='linear'
+                                   padding='VALID',
+                                   activation=None
                                    ),
             tf.keras.layers.DepthwiseConv2D(kernel_size=3,
                                             strides=1,
                                             padding='SAME',
-                                            activation='linear'
+                                            activation=None
                                             ),
             SimpleGate(),
             SimpleChannelAttention(self.n_filters),
             tf.keras.layers.Conv2D(self.n_filters,
-                                   kernel_size=3,
+                                   kernel_size=1,
                                    strides=1,
-                                   padding='SAME',
-                                   activation='linear'
+                                   padding='VALID',
+                                   activation=None
                                    )
         ])
         self.drop1 = tf.keras.layers.Dropout(self.dropout_rate)
@@ -213,11 +212,11 @@ class NAFBlock(tf.keras.layers.Layer):
         self.channel = tf.keras.Sequential([
             tf.keras.layers.LayerNormalization(),
             tf.keras.layers.Dense(self.ffn_filters,
-                                  activation='linear'
+                                  activation=None
                                   ),
             SimpleGate(),
             tf.keras.layers.Dense(self.n_filters,
-                                  activation='linear'
+                                  activation=None
                                   )
         ])
         self.drop2 = tf.keras.layers.Dropout(self.dropout_rate)

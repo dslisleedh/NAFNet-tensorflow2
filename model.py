@@ -16,13 +16,13 @@ class NAFNet(tf.keras.models.Model):
         self.to_features = tf.keras.layers.Conv2D(width,
                                                   kernel_size=3,
                                                   padding='SAME',
-                                                  activation='linear',
+                                                  activation=None,
                                                   strides=1
                                                   )
         self.to_rgb = tf.keras.layers.Conv2D(3,
                                              kernel_size=3,
                                              padding='SAME',
-                                             activation='linear',
+                                             activation=None,
                                              strides=1
                                              )
         n_stages = len(n_dec_blocks)
@@ -39,7 +39,7 @@ class NAFNet(tf.keras.models.Model):
                                        kernel_size=2,
                                        padding='valid',
                                        strides=2,
-                                       activation='linear'
+                                       activation=None
                                        )
             )
         self.middles = tf.keras.Sequential([
@@ -53,7 +53,7 @@ class NAFNet(tf.keras.models.Model):
                     tf.keras.layers.Conv2D(width * (2 ** (n_stages - i)) * 2,
                                            kernel_size=1,
                                            padding='VALID',
-                                           activation='linear',
+                                           activation=None,
                                            strides=1
                                            ),
                     PixelShuffle(2)
