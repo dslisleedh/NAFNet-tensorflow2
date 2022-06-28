@@ -9,9 +9,21 @@ class NAFNet(tf.keras.models.Model):
                  n_middle_blocks: int = 1,
                  n_enc_blocks: List[int] = [1, 1, 1, 28],
                  n_dec_blocks: List[int] = [1, 1, 1, 1],
-                 dropout_rate: float = 0.
+                 dropout_rate: float = 0.,
+                 train_size: List[int] = [None, 256, 256, 3],
+                 tlsc_rate: float = 1.5
                  ):
         super(NAFNet, self).__init__()
+
+        self.width = width
+        self.n_middle_blocks = n_middle_blocks
+        self.n_enc_blocks = n_enc_blocks
+        self.n_dec_blocks = n_dec_blocks
+        self.dropout_rate = dropout_rate
+        self.train_size = train_size
+        self.tlsc_rate = tlsc_rate
+        n_stages = len(n_enc_blocks)
+        kh, kw = int(train_size[1] * tlsc_rate), int(train_size[1] * tlsc_rate)
 
         self.to_features = tf.keras.layers.Conv2D(width,
                                                   kernel_size=3,
@@ -25,13 +37,14 @@ class NAFNet(tf.keras.models.Model):
                                              activation=None,
                                              strides=1
                                              )
-        n_stages = len(n_dec_blocks)
         self.encoders = []
         self.downs = []
         for i, n in enumerate(n_enc_blocks):
             self.encoders.append(
                 tf.keras.Sequential([
-                    NAFBlock(width * (2 ** i), dropout_rate) for _ in range(n)
+                    NAFBlock(
+                        width * (2 ** i), dropout_rate, kh // (2 ** i), kw // (2 ** i)
+                    ) for _ in range(n)
                 ])
             )
             self.downs.append(
@@ -43,7 +56,9 @@ class NAFNet(tf.keras.models.Model):
                                        )
             )
         self.middles = tf.keras.Sequential([
-            NAFBlock(width * (2 ** n_stages), dropout_rate) for _ in range(n_middle_blocks)
+            NAFBlock(
+                width * (2 ** n_stages), dropout_rate, kh // (2 ** n_stages), kw // (2 ** n_stages)
+            ) for _ in range(n_middle_blocks)
         ])
         self.decoders = []
         self.ups = []
@@ -61,29 +76,35 @@ class NAFNet(tf.keras.models.Model):
             )
             self.decoders.append(
                 tf.keras.Sequential([
-                    NAFBlock(width * (2 ** (n_stages - (i + 1))), dropout_rate) for _ in range(n)
+                    NAFBlock(
+                        width * (2 ** (n_stages - (i + 1))), dropout_rate,
+                        kh // (2 ** (n_stages - (i + 1))), kw // (2 ** (n_stages - (i + 1)))
+                    ) for _ in range(n)
                 ])
             )
 
-    def forward(self, x):
-        features = self.to_features(x)
+    @tf.function
+    def forward(self, x, training=False):
+        features = self.to_features(x, training=training)
 
         encs = []
         for encoder, down in zip(self.encoders, self.downs):
-            features = encoder(features)
+            features = encoder(features, training=training)
             encs.append(features)
-            features = down(features)
+            features = down(features, training=training)
 
-        features = self.middles(features)
+        features = self.middles(features, training=training)
 
         for decoder, up, enc_skip in zip(self.decoders, self.ups, encs[::-1]):
-            features = up(features)
+            features = up(features, training=training)
             features = features + enc_skip
-            features = decoder(features)
+            features = decoder(features, training=training)
 
-        x_res = self.to_rgb(features)
+        x_res = self.to_rgb(features, training=training)
         x = x + x_res
         return x
 
     def call(self, inputs, training=None, mask=None):
-        return self.forward(inputs)
+        if training is None:
+            training = False
+        return self.forward(inputs, training=training)

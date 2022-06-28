@@ -1,4 +1,6 @@
+from typing import List
 import tensorflow as tf
+import tensorflow.keras.backend as K
 
 
 '''
@@ -127,6 +129,71 @@ class BaselineBlock(tf.keras.layers.Layer):
 '''
 
 
+def edge_padding2d(x, h_pad, w_pad):
+    if h_pad[0] != 0:
+        x_up = tf.gather(x, indices=[0], axis=1)
+        x_up = tf.concat([x_up for _ in range(h_pad[0])], axis=1)
+        x = tf.concat([x_up, x], axis=1)
+    if h_pad[1] != 0:
+        x_down = tf.gather(tf.reverse(x, axis=[1]), indices=[0], axis=1)
+        x_down = tf.concat([x_down for _ in range(h_pad[1])], axis=1)
+        x = tf.concat([x, x_down], axis=1)
+    if w_pad[0] != 0:
+        x_left = tf.gather(x, indices=[0], axis=2)
+        x_left = tf.concat([x_left for _ in range(w_pad[0])], axis=2)
+        x = tf.concat([x_left, x], axis=2)
+    if w_pad[1] != 0:
+        x_right= tf.gather(tf.reverse(x, axis=[2]), indices=[0], axis=2)
+        x_right = tf.concat([x_right for _ in range(w_pad[1])], axis=2)
+        x = tf.concat([x, x_right], axis=2)
+    return x
+
+
+class LocalAvgPool2D(tf.keras.layers.Layer):
+    def __init__(self,
+                 local_size: List[int]
+                 ):
+        super(LocalAvgPool2D, self).__init__()
+        self.local_size = local_size
+
+    def call(self, inputs, *args, **kwargs):
+        if K.learning_phase():
+            return tf.reduce_mean(inputs, axis=[1,2])
+
+        _, h, w, _ = inputs.get_shape().as_list()
+        kh = min(h, self.local_size[0])
+        kw = min(w, self.local_size[1])
+        inputs = tf.pad(inputs,
+                        [[0, 0],
+                         [1, 0],
+                         [1, 0],
+                         [0, 0]]
+                        )
+        inputs = tf.cumsum(tf.cumsum(inputs, axis=2), axis=1)
+        s1 = tf.slice(inputs,
+                      [0, 0, 0, 0],
+                      [-1, kh, kw, -1]
+                      )
+        s2 = tf.slice(inputs,
+                      [0, 0, (w - kw)+1, 0],
+                      [-1, kw, -1, -1]
+                      )
+        s3 = tf.slice(inputs,
+                      [0, (h - kh)+1, 0, 0],
+                      [-1, -1, kw, -1]
+                      )
+        s4 = tf.slice(inputs,
+                      [0, (h - kh)+1, (w - kw)+1, 0],
+                      [-1, -1, -1, -1]
+                      )
+        local_gap = (s4 + s1 - s2 - s3) / (kh * kw)
+
+        _, h_, w_, _ = local_gap.get_shape().as_list()
+        h_pad, w_pad = [(h - h_) // 2, (h - h_ + 1) // 2], [(w - w_) // 2, (w - w_ + 1) // 2]
+        local_gap = edge_padding2d(local_gap, h_pad, w_pad)
+        return local_gap
+
+
 class PixelShuffle(tf.keras.layers.Layer):
     def __init__(self, upsample_rate):
         super(PixelShuffle, self).__init__()
@@ -152,21 +219,28 @@ class SimpleGate(tf.keras.layers.Layer):
 
 class SimpleChannelAttention(tf.keras.layers.Layer):
     def __init__(self,
-                 n_filters
+                 n_filters: int,
+                 kh: int,
+                 kw: int
                  ):
         super(SimpleChannelAttention, self).__init__()
         self.n_filters = n_filters
+        self.kh = kh
+        self.kw = kw
 
+        self.pool = LocalAvgPool2D([kw, kw])
         self.w = tf.keras.layers.Dense(self.n_filters,
-                                       activation=None,
-                                       use_bias=False
+                                       activation=None
                                        )
 
     def call(self, inputs, *args, **kwargs):
-        attention = tf.reduce_mean(inputs,
-                                   axis=[1, 2],
-                                   keepdims=True
-                                   )
+        if K.learning_phase():
+            attention = tf.reduce_mean(inputs,
+                                       axis=[1, 2],
+                                       keepdims=True
+                                       )
+        else:
+            attention = self.pool(inputs)
         attention = self.w(attention)
         return attention * inputs
 
@@ -175,6 +249,8 @@ class NAFBlock(tf.keras.layers.Layer):
     def __init__(self,
                  n_filters: int,
                  dropout_rate: float,
+                 kh: int,
+                 kw: int,
                  dw_expansion: int = 2,
                  ffn_expansion: int = 2
                  ):
@@ -182,6 +258,8 @@ class NAFBlock(tf.keras.layers.Layer):
 
         self.n_filters = n_filters
         self.dropout_rate = dropout_rate
+        self.kh = kh
+        self.kw = kw
         self.dw_filters = n_filters * dw_expansion
         self.ffn_filters = n_filters * ffn_expansion
 
@@ -199,7 +277,10 @@ class NAFBlock(tf.keras.layers.Layer):
                                             activation=None
                                             ),
             SimpleGate(),
-            SimpleChannelAttention(self.n_filters),
+            SimpleChannelAttention(self.n_filters,
+                                   self.kh,
+                                   self.kw
+                                   ),
             tf.keras.layers.Conv2D(self.n_filters,
                                    kernel_size=1,
                                    strides=1,
