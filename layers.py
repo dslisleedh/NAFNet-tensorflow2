@@ -156,8 +156,8 @@ class LocalAvgPool2D(tf.keras.layers.Layer):
         super(LocalAvgPool2D, self).__init__()
         self.local_size = local_size
 
-    def call(self, inputs, *args, **kwargs):
-        if K.learning_phase():
+    def call(self, inputs, training):
+        if training:
             return tf.reduce_mean(inputs, axis=[1,2])
 
         _, h, w, _ = inputs.get_shape().as_list()
@@ -234,13 +234,7 @@ class SimpleChannelAttention(tf.keras.layers.Layer):
                                        )
 
     def call(self, inputs, *args, **kwargs):
-        if K.learning_phase():
-            attention = tf.reduce_mean(inputs,
-                                       axis=[1, 2],
-                                       keepdims=True
-                                       )
-        else:
-            attention = self.pool(inputs)
+        attention = self.pool(inputs)
         attention = self.w(attention)
         return attention * inputs
 
