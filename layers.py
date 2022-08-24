@@ -158,7 +158,7 @@ class LocalAvgPool2D(tf.keras.layers.Layer):
 
     def call(self, inputs, training):
         if training:
-            return tf.reduce_mean(inputs, axis=[1,2])
+            return tf.reduce_mean(inputs, axis=[1, 2], keepdims=True)
 
         _, h, w, _ = inputs.get_shape().as_list()
         kh = min(h, self.local_size[0])
